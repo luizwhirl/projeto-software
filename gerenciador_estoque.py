@@ -104,9 +104,9 @@ class GerenciadorEstoque:
         if not all([produto, localizacao]):
             raise ValueError("Produto ou Localização inválido.")
 
-        quantidade = int(quantidade)
+        # A lógica de validação de estoque já trata quantidades negativas (saídas)
         if quantidade < 0 and produto.estoque_por_local[localizacao.nome] < abs(quantidade):
-            raise ValueError(f"Estoque insuficiente em {localizacao.nome}")
+            raise ValueError(f"Estoque insuficiente de '{produto.nome}' em '{localizacao.nome}' para completar a venda.")
 
         produto.estoque_por_local[localizacao.nome] += quantidade
         self.historico.append(HistoricoMovimento(produto, tipo_movimento, quantidade, localizacao))
@@ -124,7 +124,7 @@ Data de Geração: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}
 Valor Total do Estoque: R$ {self.calcular_valor_total_estoque():.2f}
 {'='*50}\n\n"""
         for produto in self.produtos.values():
-            estoque_locais = "\n".join([f"     - {local}: {qtd} unidades" for local, qtd in produto.estoque_por_local.items()])
+            estoque_locais = "\n".join([f"     - {local}: {qtd} unidades" for local, qtd in produto.estoque_por_local.items() if qtd > 0])
             if not estoque_locais:
                 estoque_locais = "     - Sem estoque registrado"
 
@@ -203,10 +203,13 @@ class App:
         aba = ttk.Frame(self.notebook, padding=10)
         self.notebook.add(aba, text='Produtos')
 
-        form_container = ttk.Frame(aba)
-        form_container.pack(side="left", fill="y", padx=(0, 10))
-        form_frame = self._criar_frame_com_titulo(form_container, "Gerenciar Produto")
-        form_frame.pack(fill="both", expand=True)
+        # Container principal da esquerda
+        left_container = ttk.Frame(aba)
+        left_container.pack(side="left", fill="y", padx=(0, 10))
+
+        # Formulário de Gerenciar Produto
+        form_frame = self._criar_frame_com_titulo(left_container, "Gerenciar Produto")
+        form_frame.pack(fill="x", expand=False) # Não expande para dar espaço ao novo frame
 
         self.entries_prod = {}
         campos = {
@@ -230,6 +233,23 @@ class App:
         ttk.Button(btn_frame, text="Remover Selecionado", command=self.remover_produto_gui).grid(row=1, column=0, padx=5, pady=5)
         ttk.Button(btn_frame, text="Limpar Formulário", command=self.limpar_formulario_produtos).grid(row=1, column=1, padx=5, pady=5)
 
+        ### NOVO CÓDIGO INICIA AQUI ###
+        
+        # Novo Frame para Movimentação de Estoque
+        movimento_frame = self._criar_frame_com_titulo(left_container, "Movimentar Estoque do Item Selecionado")
+        movimento_frame.pack(fill='x', expand=False, pady=(20, 0)) # Adiciona um espaço acima
+
+        self.mov_qtd = self._criar_campo_formulario(movimento_frame, "Quantidade:", ttk.Entry, 0, validate='key', validatecommand=self.vcmd_int)
+        self.mov_local = self._criar_campo_formulario(movimento_frame, "Localização:", ttk.Combobox, 1, state='readonly')
+
+        mov_btn_frame = ttk.Frame(movimento_frame)
+        mov_btn_frame.grid(row=2, column=0, columnspan=2, pady=10)
+        ttk.Button(mov_btn_frame, text="Registrar Entrada (Compra)", command=lambda: self.movimentar_estoque_gui("Entrada")).pack(side="left", padx=5)
+        ttk.Button(mov_btn_frame, text="Registrar Saída (Venda)", command=lambda: self.movimentar_estoque_gui("Saída")).pack(side="left", padx=5)
+
+        ### FIM DO NOVO CÓDIGO ###
+
+        # Tabela de Produtos
         table_frame = self._criar_frame_com_titulo(aba, "Catálogo de Produtos")
         table_frame.pack(side="right", fill='both', expand=True)
         self.tree_produtos = ttk.Treeview(table_frame, columns=("ID", "Nome", "Categoria", "Fornecedor", "Estoque", "Preço (R$)"), show="headings")
@@ -254,7 +274,49 @@ class App:
         self.txt_relatorio.pack(fill='both', expand=True)
 
     def _get_id_from_combobox(self, combo_value):
-        return int(combo_value.split(" - ")[0])
+        try:
+            return int(combo_value.split(" - ")[0])
+        except (ValueError, IndexError):
+            return None
+            
+    ### NOVO CÓDIGO INICIA AQUI ###
+    def movimentar_estoque_gui(self, tipo):
+        if not (selected_items := self.tree_produtos.selection()):
+            return messagebox.showwarning("Aviso", "Selecione um produto da lista para movimentar o estoque.")
+
+        produto_id = int(selected_items[0])
+        
+        # Obter dados do formulário de movimentação
+        try:
+            quantidade = int(self.mov_qtd.get())
+            if quantidade <= 0:
+                raise ValueError
+        except ValueError:
+            return messagebox.showerror("Erro", "Por favor, insira uma quantidade válida (número inteiro maior que zero).")
+
+        localizacao_str = self.mov_local.get()
+        if not localizacao_str:
+            return messagebox.showerror("Erro", "Por favor, selecione uma localização.")
+        
+        localizacao_id = self._get_id_from_combobox(localizacao_str)
+        produto_nome = self.gerenciador.produtos[produto_id].nome
+
+        # A quantidade é sempre positiva no formulário. A lógica decide se subtrai ou soma.
+        qtd_movimento = quantidade if tipo == "Entrada" else -quantidade
+        tipo_movimento_str = "Compra/Entrada" if tipo == "Entrada" else "Venda/Saída"
+
+        if messagebox.askyesno("Confirmar Movimentação", f"Confirma a {tipo.lower()} de {quantidade} unidade(s) de '{produto_nome}'?"):
+            try:
+                self.gerenciador.movimentar_estoque(produto_id, localizacao_id, qtd_movimento, tipo_movimento_str)
+                messagebox.showinfo("Sucesso", f"{tipo} registrada com sucesso!")
+                self.atualizar_tudo()
+                self.mov_qtd.delete(0, tk.END) # Limpa o campo de quantidade
+            except ValueError as e:
+                messagebox.showerror("Erro de Estoque", str(e))
+            except Exception as e:
+                messagebox.showerror("Erro Inesperado", f"Ocorreu um erro: {str(e)}")
+
+    ### FIM DO NOVO CÓDIGO ###
 
     def adicionar_produto_gui(self):
         dados = {k.replace(':', ''): v.get() for k, v in self.entries_prod.items()}
@@ -265,14 +327,21 @@ class App:
             return messagebox.showerror("Erro", "Se a quantidade inicial for informada, a localização é obrigatória.")
 
         try:
+            fornecedor_id = self._get_id_from_combobox(dados['Fornecedor'])
+            if not fornecedor_id:
+                raise ValueError("Fornecedor inválido ou não selecionado.")
+
             novo_produto = self.gerenciador.adicionar_produto(
                 nome=dados['Nome'], descricao=dados['Descrição'] or "N/A", categoria=dados['Categoria'] or "Outro",
-                fornecedor_id=self._get_id_from_combobox(dados['Fornecedor']),
+                fornecedor_id=fornecedor_id,
                 codigo_barras=dados['Cód. Barras'] or "N/A", preco_compra=float(dados['Preço Compra']),
                 preco_venda=float(dados['Preço Venda']), ponto_ressuprimento=int(dados['Ponto Ressupr.'])
             )
             if dados['Qtd. Inicial']:
-                self.gerenciador.movimentar_estoque(novo_produto.id, self._get_id_from_combobox(dados['Localização Inicial']),
+                local_id = self._get_id_from_combobox(dados['Localização Inicial'])
+                if not local_id:
+                    raise ValueError("Localização inicial inválida ou não selecionada.")
+                self.gerenciador.movimentar_estoque(novo_produto.id, local_id,
                                                   int(dados['Qtd. Inicial']), "Compra Inicial")
             messagebox.showinfo("Sucesso", "Produto adicionado!")
             self.limpar_formulario_produtos()
@@ -290,12 +359,16 @@ class App:
             return messagebox.showerror("Erro", "Campos obrigatórios não podem ficar vazios na atualização.")
 
         try:
+            fornecedor_id = self._get_id_from_combobox(dados['Fornecedor'])
+            if not fornecedor_id:
+                raise ValueError("Fornecedor inválido ou não selecionado.")
+
             dados_atualizados = {
                 'nome': dados['Nome'], 'descricao': dados['Descrição'] or "N/A",
                 'categoria': dados['Categoria'], 'codigo_barras': dados['Cód. Barras'] or "N/A",
                 'preco_compra': float(dados['Preço Compra']), 'preco_venda': float(dados['Preço Venda']),
                 'ponto_ressuprimento': int(dados['Ponto Ressupr.']),
-                'fornecedor': self._get_id_from_combobox(dados['Fornecedor'])
+                'fornecedor': fornecedor_id
             }
             self.gerenciador.atualizar_produto(int(selected_items[0]), **dados_atualizados)
             messagebox.showinfo("Sucesso", "Produto atualizado!")
@@ -345,7 +418,9 @@ class App:
         self.entries_prod["Categoria:"].config(state='readonly')
 
     def limpar_formulario_produtos(self):
-        self.tree_produtos.selection_remove(self.tree_produtos.selection())
+        if self.tree_produtos.selection():
+            self.tree_produtos.selection_remove(self.tree_produtos.selection())
+            
         for widget in self.entries_prod.values():
             if isinstance(widget, ttk.Combobox):
                 widget.set('')
@@ -354,21 +429,29 @@ class App:
                 widget.config(state='normal')
                 widget.delete(0, tk.END)
         self.entries_prod["Categoria:"].set("Eletrônicos")
+        self.mov_qtd.delete(0, tk.END)
+        self.mov_local.set('')
 
     def atualizar_dashboard(self):
         self.lbl_valor_estoque.config(text=f"Valor Total do Estoque: R$ {self.gerenciador.calcular_valor_total_estoque():.2f}")
         self.lbl_itens_unicos.config(text=f"Itens Únicos: {len(self.gerenciador.produtos)}")
         
-        self.tree_alertas.delete(*self.tree_alertas.get_children())
+        for i in self.tree_alertas.get_children():
+            self.tree_alertas.delete(i)
         for p in self.gerenciador.verificar_alertas_ressuprimento():
             self.tree_alertas.insert("", "end", values=(p.id, p.nome, p.get_estoque_total(), p.ponto_ressuprimento))
 
     def atualizar_tabela_produtos(self):
-        self.entries_prod["Fornecedor:"]['values'] = [str(f) for f in self.gerenciador.fornecedores.values()]
-        self.entries_prod["Localização Inicial:"]['values'] = [str(l) for l in self.gerenciador.localizacoes.values()]
+        fornecedores_str = [str(f) for f in self.gerenciador.fornecedores.values()]
+        localizacoes_str = [str(l) for l in self.gerenciador.localizacoes.values()]
+
+        self.entries_prod["Fornecedor:"]['values'] = fornecedores_str
+        self.entries_prod["Localização Inicial:"]['values'] = localizacoes_str
+        self.mov_local['values'] = localizacoes_str # Atualiza combobox de movimentação
         
-        self.tree_produtos.delete(*self.tree_produtos.get_children())
-        for p in self.gerenciador.produtos.values():
+        for i in self.tree_produtos.get_children():
+            self.tree_produtos.delete(i)
+        for p in sorted(self.gerenciador.produtos.values(), key=lambda x: x.id):
             self.tree_produtos.insert("", "end", iid=p.id, values=(
                 p.id, p.nome, p.categoria, p.fornecedor.nome,
                 p.get_estoque_total(), f"{p.preco_venda:.2f}"
@@ -379,8 +462,16 @@ class App:
         self.txt_relatorio.insert(tk.END, self.gerenciador.gerar_relatorio_estoque())
 
     def atualizar_tudo(self):
+        """Atualiza todos os componentes da UI que exibem dados."""
+        # Mantém a seleção atual para uma melhor experiência do usuário
+        selecao_atual = self.tree_produtos.selection()
+        
         self.atualizar_dashboard()
         self.atualizar_tabela_produtos()
+
+        if selecao_atual:
+            self.tree_produtos.selection_set(selecao_atual)
+
 
 # 4- ponto de entrada do programa
 if __name__ == "__main__":
@@ -400,8 +491,9 @@ if __name__ == "__main__":
 
     gerenciador.movimentar_estoque(p1.id, deposito.id, 15, "Compra")
     gerenciador.movimentar_estoque(p2.id, deposito.id, 50, "Compra")
-    gerenciador.movimentar_estoque(p3.id, deposito.id, 8, "Compra") # gerar alerta
+    gerenciador.movimentar_estoque(p3.id, deposito.id, 8, "Compra")
     gerenciador.movimentar_estoque(p1.id, loja_a.id, 5, "Transferência")
+    gerenciador.movimentar_estoque(p1.id, deposito.id, -2, "Venda") # Exemplo de venda
     
     root = tk.Tk()
     app = App(root, gerenciador)
