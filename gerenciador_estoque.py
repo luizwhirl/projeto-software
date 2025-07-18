@@ -1,11 +1,9 @@
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog, filedialog
-from datetime import datetime
-from collections import defaultdict
+from datetime import datetime, time
+from collections import defaultdict, Counter
 from dataclasses import dataclass, field
 
-# --- Bloco de Importação para PDF (ReportLab) ---
-# Tenta importar a biblioteca. Se não for encontrada, a opção de PDF será desabilitada.
 try:
     from reportlab.pdfgen import canvas
     from reportlab.lib.pagesizes import letter
@@ -13,10 +11,6 @@ try:
     REPORTLAB_DISPONIVEL = True
 except ImportError:
     REPORTLAB_DISPONIVEL = False
-# ----------------------------------------------------
-
-
-# 1: classes de modelo (elas representam os dados do sistema)
 
 @dataclass
 class Fornecedor:
@@ -83,8 +77,6 @@ class OrdemCompra:
     def valor_total(self) -> float:
         return sum(item.subtotal for item in self.itens)
 
-# 2: classe controladora (é aqui que está a lógica do programaaaaa)
-
 class GerenciadorEstoque:
     def __init__(self):
         self.produtos: dict[int, Produto] = {}
@@ -139,12 +131,20 @@ class GerenciadorEstoque:
         if not all([produto, localizacao]):
             raise ValueError("Produto ou Localização inválido.")
 
+        estoque_anterior = produto.get_estoque_total()
+
         if quantidade < 0 and produto.estoque_por_local[localizacao.nome] < abs(quantidade):
             raise ValueError(f"Estoque insuficiente de '{produto.nome}' em '{localizacao.nome}' para completar a venda.")
 
         produto.estoque_por_local[localizacao.nome] += quantidade
         self.historico.append(HistoricoMovimento(produto, tipo_movimento, quantidade, localizacao))
-        return True
+        
+        estoque_novo = produto.get_estoque_total()
+        produto_para_alertar = None
+        if estoque_anterior > produto.ponto_ressuprimento and estoque_novo <= produto.ponto_ressuprimento:
+            produto_para_alertar = produto
+
+        return True, produto_para_alertar
 
     def criar_ordem_compra(self, fornecedor_id: int, itens_info: list[dict]) -> OrdemCompra:
         if not (fornecedor := self.fornecedores.get(fornecedor_id)):
@@ -208,11 +208,11 @@ class GerenciadorEstoque:
     def calcular_valor_total_estoque(self):
         return sum(p.get_estoque_total() * p.preco_compra for p in self.produtos.values())
 
-    def gerar_relatorio_estoque(self):
-        report = f"""RELATÓRIO DE ESTOQUE
+    def gerar_relatorio_estoque_simplificado(self):
+        report = f"""RELATÓRIO DE ESTOQUE (SIMPLIFICADO)
 Data de Geração: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}
 Valor Total do Estoque: R$ {self.calcular_valor_total_estoque():.2f}
-{'='*50}\n\n"""
+{'='*60}\n\n"""
         for produto in self.produtos.values():
             estoque_locais = "\n".join([f"     - {local}: {qtd} unidades" for local, qtd in produto.estoque_por_local.items() if qtd > 0])
             if not estoque_locais:
@@ -223,10 +223,106 @@ Valor Total do Estoque: R$ {self.calcular_valor_total_estoque():.2f}
    Ponto de Ressuprimento: {produto.ponto_ressuprimento}
    Estoque por Local:
 {estoque_locais}
-{'-'*20}\n"""
+{'-'*25}\n"""
         return report
 
-# classe da visão, com interface otimizada
+    def gerar_relatorio_valor_total(self):
+        valor_total = self.calcular_valor_total_estoque()
+        return f"""RELATÓRIO DE VALOR TOTAL DO INVENTÁRIO
+Data de Geração: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}
+{'='*60}
+O valor total do seu inventário (baseado no preço de compra) é: R$ {valor_total:.2f}
+"""
+
+    def gerar_relatorio_baixo_estoque(self):
+        produtos_baixo_estoque = self.verificar_alertas_ressuprimento()
+        report = f"""RELATÓRIO DE PRODUTOS COM BAIXO ESTOQUE
+Data de Geração: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}
+{'='*60}\n
+"""
+        if not produtos_baixo_estoque:
+            return report + "Nenhum produto com baixo estoque no momento."
+        
+        for p in produtos_baixo_estoque:
+            report += (f"ID: {p.id} - {p.nome}\n"
+                       f"   Estoque Atual: {p.get_estoque_total()} | Mínimo Definido: {p.ponto_ressuprimento}\n\n")
+        return report
+
+    def gerar_relatorio_mais_vendidos(self):
+        vendas = Counter()
+        for mov in self.historico:
+            if "Venda" in mov.tipo or "Saída" in mov.tipo:
+                vendas[mov.produto.nome] += abs(mov.quantidade)
+        
+        report = f"""RELATÓRIO DE PRODUTOS MAIS VENDIDOS
+Data de Geração: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}
+{'='*60}\n
+"""
+        if not vendas:
+            return report + "Nenhuma venda registrada até o momento."
+            
+        for i, (nome_produto, qtd) in enumerate(vendas.most_common(), 1):
+            report += f"{i}º. {nome_produto} - {qtd} unidades vendidas\n"
+            
+        return report
+
+    def gerar_relatorio_movimentacao_item(self, produto_id: int):
+        if not (produto := self.produtos.get(produto_id)):
+            return "Erro: Produto não encontrado."
+
+        movimentos_produto = [m for m in self.historico if m.produto.id == produto_id]
+
+        report = f"""HISTÓRICO DE MOVIMENTAÇÃO DO PRODUTO: {produto.nome.upper()} (ID: {produto.id})
+Data de Geração: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}
+{'='*70}\n
+"""
+        if not movimentos_produto:
+            return report + "Nenhuma movimentação registrada para este produto."
+        
+        for mov in sorted(movimentos_produto, key=lambda m: m.data, reverse=True):
+            sinal = '+' if mov.quantidade > 0 else ''
+            report += (f"Data: {mov.data.strftime('%d/%m/%Y %H:%M')} | "
+                       f"Tipo: {mov.tipo:<18} | "
+                       f"Qtd: {sinal}{mov.quantidade:<4} | "
+                       f"Local: {mov.localizacao.nome}\n")
+        return report
+
+    def gerar_relatorio_vendas_periodo(self, data_inicio: datetime, data_fim: datetime):
+        vendas_periodo = [
+            m for m in self.historico 
+            if ("Venda" in m.tipo or "Saída" in m.tipo) and data_inicio <= m.data <= data_fim
+        ]
+        
+        report = f"""RELATÓRIO DE VENDAS POR PERÍODO
+Período: {data_inicio.strftime('%d/%m/%Y')} a {data_fim.strftime('%d/%m/%Y')}
+{'='*70}\n
+"""
+        if not vendas_periodo:
+            return report + "Nenhuma venda registrada no período selecionado."
+
+        total_itens = 0
+        receita_total = 0.0
+        lucro_total = 0.0
+        
+        for venda in vendas_periodo:
+            qtd_vendida = abs(venda.quantidade)
+            receita_item = qtd_vendida * venda.produto.preco_venda
+            lucro_item = qtd_vendida * (venda.produto.preco_venda - venda.produto.preco_compra)
+            
+            total_itens += qtd_vendida
+            receita_total += receita_item
+            lucro_total += lucro_item
+            
+            report += (f"Data: {venda.data.strftime('%d/%m/%Y')} | "
+                       f"Produto: {venda.produto.nome:<25} | "
+                       f"Qtd: {qtd_vendida}\n")
+        
+        report += f"\n{'-'*30}\nRESUMO DO PERÍODO\n{'-'*30}\n"
+        report += f"Total de Itens Vendidos: {total_itens}\n"
+        report += f"Receita Bruta Total: R$ {receita_total:.2f}\n"
+        report += f"Lucro Bruto Total: R$ {lucro_total:.2f}\n"
+        
+        return report
 
 class App:
     def __init__(self, root: tk.Tk, gerenciador: GerenciadorEstoque):
@@ -285,7 +381,7 @@ class App:
         self.lbl_itens_unicos = ttk.Label(frame_metricas, text="Itens Únicos: 0", font=("Helvetica", 12, "bold"))
         self.lbl_itens_unicos.pack(pady=5, padx=10, anchor="w")
 
-        frame_alertas = self._criar_frame_com_titulo(aba, "Alertas de Baixo Estoque")
+        frame_alertas = self._criar_frame_com_titulo(aba, "Alertas de Baixo Estoque (Itens que precisam de reposição)")
         frame_alertas.pack(fill='both', expand=True, pady=10)
         self.tree_alertas = ttk.Treeview(frame_alertas, columns=("ID", "Nome", "Estoque Atual", "Mínimo"), show="headings")
         for col in self.tree_alertas['columns']:
@@ -408,16 +504,57 @@ class App:
     def criar_aba_relatorios(self):
         aba = ttk.Frame(self.notebook, padding=10)
         self.notebook.add(aba, text='Relatórios')
-        ttk.Button(aba, text="Gerar Relatório Completo de Estoque", command=self.gerar_relatorio_gui).pack(pady=10)
-        self.txt_relatorio = tk.Text(aba, wrap='word', height=20, font=("Courier New", 10))
-        self.txt_relatorio.pack(fill='both', expand=True)
 
+        painel_controle = self._criar_frame_com_titulo(aba, "Opções de Relatório")
+        painel_controle.pack(side="left", fill="y", padx=(0, 10))
+
+        ttk.Label(painel_controle, text="Tipo de Relatório:").grid(row=0, column=0, sticky='w', padx=5, pady=(0, 5))
+        self.relatorio_combo_tipo = ttk.Combobox(painel_controle, state='readonly', values=[
+            "Inventário Completo (Simplificado)",
+            "Valor Total do Inventário",
+            "Produtos com Baixo Estoque",
+            "Produtos Mais Vendidos",
+            "Histórico de Movimentação por Item",
+            "Relatório de Vendas por Período"
+        ])
+        self.relatorio_combo_tipo.grid(row=1, column=0, sticky='ew', padx=5, pady=(0, 10))
+        self.relatorio_combo_tipo.bind("<<ComboboxSelected>>", self._atualizar_filtros_relatorio)
+
+        self.relatorio_frame_filtros = self._criar_frame_com_titulo(painel_controle, "Filtros")
+        self.relatorio_frame_filtros.grid(row=2, column=0, sticky='ew', padx=5)
+        
+        self.relatorio_lbl_produto = ttk.Label(self.relatorio_frame_filtros, text="Selecione o Produto:")
+        self.relatorio_combo_produto = ttk.Combobox(self.relatorio_frame_filtros, state='readonly')
+        
+        self.relatorio_lbl_data_inicio = ttk.Label(self.relatorio_frame_filtros, text="Data de Início (DD/MM/AAAA):")
+        self.relatorio_entry_data_inicio = ttk.Entry(self.relatorio_frame_filtros)
+        self.relatorio_lbl_data_fim = ttk.Label(self.relatorio_frame_filtros, text="Data de Fim (DD/MM/AAAA):")
+        self.relatorio_entry_data_fim = ttk.Entry(self.relatorio_frame_filtros)
+
+        ttk.Button(painel_controle, text="Gerar Relatório", command=self._gerar_relatorio_detalhado_gui).grid(row=3, column=0, pady=20, padx=5)
+
+        frame_resultado = self._criar_frame_com_titulo(aba, "Visualização do Relatório")
+        frame_resultado.pack(side="right", fill="both", expand=True)
+
+        self.txt_relatorio = tk.Text(frame_resultado, wrap='word', height=20, font=("Courier New", 10))
+        self.txt_relatorio.pack(fill='both', expand=True)
+        
     def _get_id_from_combobox(self, combo_value):
         try:
             return int(combo_value.split(" - ")[0])
         except (ValueError, IndexError):
             return None
             
+    def _exibir_alerta_reabastecimento(self, produto: Produto):
+        messagebox.showwarning(
+            "Alerta de Reabastecimento",
+            f"O estoque do produto atingiu o nível mínimo!\n\n"
+            f"Produto: {produto.nome}\n"
+            f"Estoque Atual: {produto.get_estoque_total()} unidades\n"
+            f"Nível Mínimo: {produto.ponto_ressuprimento} unidades\n\n"
+            "Recomenda-se criar uma nova Ordem de Compra."
+        )
+
     def movimentar_estoque_gui(self, tipo):
         if not (selected_items := self.tree_produtos.selection()):
             return messagebox.showwarning("Aviso", "Selecione um produto da lista para movimentar o estoque.")
@@ -443,10 +580,13 @@ class App:
 
         if messagebox.askyesno("Confirmar Movimentação", f"Confirma a {tipo.lower()} de {quantidade} unidade(s) de '{produto_nome}'?"):
             try:
-                self.gerenciador.movimentar_estoque(produto_id, localizacao_id, qtd_movimento, tipo_movimento_str)
-                messagebox.showinfo("Sucesso", f"{tipo} registrada com sucesso!")
-                self.atualizar_tudo()
-                self.mov_qtd.delete(0, tk.END)
+                sucesso, produto_para_alertar = self.gerenciador.movimentar_estoque(produto_id, localizacao_id, qtd_movimento, tipo_movimento_str)
+                if sucesso:
+                    messagebox.showinfo("Sucesso", f"{tipo} registrada com sucesso!")
+                    self.atualizar_tudo()
+                    self.mov_qtd.delete(0, tk.END)
+                    if produto_para_alertar:
+                        self._exibir_alerta_reabastecimento(produto_para_alertar)
             except ValueError as e:
                 messagebox.showerror("Erro de Estoque", str(e))
             except Exception as e:
@@ -475,8 +615,11 @@ class App:
                 local_id = self._get_id_from_combobox(dados['Localização Inicial'])
                 if not local_id:
                     raise ValueError("Localização inicial inválida ou não selecionada.")
-                self.gerenciador.movimentar_estoque(novo_produto.id, local_id,
+                _, produto_para_alertar = self.gerenciador.movimentar_estoque(novo_produto.id, local_id,
                                                    int(dados['Qtd. Inicial']), "Compra Inicial")
+                if produto_para_alertar:
+                    self._exibir_alerta_reabastecimento(produto_para_alertar)
+
             messagebox.showinfo("Sucesso", "Produto adicionado!")
             self.limpar_formulario_produtos()
             self.atualizar_tudo()
@@ -868,7 +1011,7 @@ Contato: {ordem.fornecedor.contato} | Email: {ordem.fornecedor.email}
                 c.drawString(width - 2.8*inch, y, f"R$ {item.preco_unitario:.2f}")
                 c.drawString(width - 1.5*inch, y, f"R$ {item.subtotal:.2f}")
                 y -= 0.2 * inch
-                if y < inch: # Page break
+                if y < inch: 
                     c.showPage()
                     y = height - inch
                     c.setFont("Helvetica", 10)
@@ -885,7 +1028,6 @@ Contato: {ordem.fornecedor.contato} | Email: {ordem.fornecedor.email}
         except Exception as e:
             messagebox.showerror("Erro ao Salvar PDF", f"Não foi possível salvar o arquivo PDF.\nErro: {e}")
 
-
     def _atualizar_tree_itens_nova_oc(self):
         for i in self.tree_itens_nova_oc.get_children():
             self.tree_itens_nova_oc.delete(i)
@@ -894,6 +1036,66 @@ Contato: {ordem.fornecedor.contato} | Email: {ordem.fornecedor.email}
                 item['produto_id'], item['nome'], item['quantidade'],
                 f"{item['preco_unitario']:.2f}", f"{item['subtotal']:.2f}"
             ))
+
+    def _atualizar_filtros_relatorio(self, event=None):
+        tipo_selecionado = self.relatorio_combo_tipo.get()
+
+        self.relatorio_lbl_produto.grid_remove()
+        self.relatorio_combo_produto.grid_remove()
+        self.relatorio_lbl_data_inicio.grid_remove()
+        self.relatorio_entry_data_inicio.grid_remove()
+        self.relatorio_lbl_data_fim.grid_remove()
+        self.relatorio_entry_data_fim.grid_remove()
+
+        if tipo_selecionado == "Histórico de Movimentação por Item":
+            self.relatorio_lbl_produto.grid(row=0, column=0, sticky='w', padx=5)
+            self.relatorio_combo_produto.grid(row=1, column=0, sticky='ew', padx=5)
+        elif tipo_selecionado == "Relatório de Vendas por Período":
+            self.relatorio_lbl_data_inicio.grid(row=0, column=0, sticky='w', padx=5)
+            self.relatorio_entry_data_inicio.grid(row=1, column=0, sticky='ew', padx=5)
+            self.relatorio_lbl_data_fim.grid(row=2, column=0, sticky='w', padx=5, pady=(5,0))
+            self.relatorio_entry_data_fim.grid(row=3, column=0, sticky='ew', padx=5)
+
+    def _gerar_relatorio_detalhado_gui(self):
+        tipo_relatorio = self.relatorio_combo_tipo.get()
+        if not tipo_relatorio:
+            messagebox.showerror("Erro", "Por favor, selecione um tipo de relatório.")
+            return
+
+        report_text = ""
+        try:
+            if tipo_relatorio == "Inventário Completo (Simplificado)":
+                report_text = self.gerenciador.gerar_relatorio_estoque_simplificado()
+            elif tipo_relatorio == "Valor Total do Inventário":
+                report_text = self.gerenciador.gerar_relatorio_valor_total()
+            elif tipo_relatorio == "Produtos com Baixo Estoque":
+                report_text = self.gerenciador.gerar_relatorio_baixo_estoque()
+            elif tipo_relatorio == "Produtos Mais Vendidos":
+                report_text = self.gerenciador.gerar_relatorio_mais_vendidos()
+            elif tipo_relatorio == "Histórico de Movimentação por Item":
+                produto_id = self._get_id_from_combobox(self.relatorio_combo_produto.get())
+                if not produto_id:
+                    raise ValueError("Selecione um produto para gerar o histórico.")
+                report_text = self.gerenciador.gerar_relatorio_movimentacao_item(produto_id)
+            elif tipo_relatorio == "Relatório de Vendas por Período":
+                str_inicio = self.relatorio_entry_data_inicio.get()
+                str_fim = self.relatorio_entry_data_fim.get()
+                if not str_inicio or not str_fim:
+                    raise ValueError("As datas de início e fim são obrigatórias.")
+                
+                data_inicio = datetime.strptime(str_inicio, "%d/%m/%Y")
+                data_fim = datetime.combine(datetime.strptime(str_fim, "%d/%m/%Y"), time.max)
+                report_text = self.gerenciador.gerar_relatorio_vendas_periodo(data_inicio, data_fim)
+
+        except ValueError as e:
+            messagebox.showerror("Erro de Filtro", str(e))
+            return
+        except Exception as e:
+            messagebox.showerror("Erro Inesperado", f"Ocorreu um erro ao gerar o relatório: {e}")
+            return
+            
+        self.txt_relatorio.delete('1.0', tk.END)
+        self.txt_relatorio.insert(tk.END, report_text)
 
     def atualizar_dashboard(self):
         self.lbl_valor_estoque.config(text=f"Valor Total do Estoque: R$ {self.gerenciador.calcular_valor_total_estoque():.2f}")
@@ -916,11 +1118,13 @@ Contato: {ordem.fornecedor.contato} | Email: {ordem.fornecedor.email}
     def atualizar_combos(self):
         fornecedores_str = [str(f) for f in self.gerenciador.fornecedores.values()]
         localizacoes_str = [str(l) for l in self.gerenciador.localizacoes.values()]
+        produtos_str = [f"{p.id} - {p.nome}" for p in self.gerenciador.produtos.values()]
 
         self.entries_prod["Fornecedor:"]['values'] = fornecedores_str
         self.entries_prod["Localização Inicial:"]['values'] = localizacoes_str
         self.mov_local['values'] = localizacoes_str
         self.oc_combo_fornecedor['values'] = fornecedores_str
+        self.relatorio_combo_produto['values'] = produtos_str
 
     def atualizar_lista_ocs(self):
         for i in self.tree_lista_ocs.get_children():
@@ -930,10 +1134,6 @@ Contato: {ordem.fornecedor.contato} | Email: {ordem.fornecedor.email}
                 oc.id, oc.fornecedor.nome, oc.data_criacao.strftime("%d/%m/%Y"),
                 f"R$ {oc.valor_total:.2f}", oc.status
             ))
-
-    def gerar_relatorio_gui(self):
-        self.txt_relatorio.delete('1.0', tk.END)
-        self.txt_relatorio.insert(tk.END, self.gerenciador.gerar_relatorio_estoque())
 
     def atualizar_tudo(self):
         selecao_atual_prod = self.tree_produtos.selection()
@@ -947,7 +1147,7 @@ Contato: {ordem.fornecedor.contato} | Email: {ordem.fornecedor.email}
         if selecao_atual_prod:
             try:
                 self.tree_produtos.selection_set(selecao_atual_prod)
-            except tk.TclError: # A seleção pode ter sido removida
+            except tk.TclError:
                 pass
         if selecao_atual_oc:
             try:
@@ -955,8 +1155,6 @@ Contato: {ordem.fornecedor.contato} | Email: {ordem.fornecedor.email}
             except tk.TclError:
                 pass
 
-
-# 4- ponto de entrada do programa
 if __name__ == "__main__":
     gerenciador = GerenciadorEstoque()
 
