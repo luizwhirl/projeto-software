@@ -12,3 +12,6 @@
 - ❌ **Sales and Purchase History**: Tracking and analyzing sales and purchase data
 - ❌ **Multi-Location Management**: Managing inventory across multiple locations
 - ✅ **Inventory Reports**: Generating detailed reports on inventory status and movements
+
+Extra features:
+- 🪮 **Database Implementation**: Implementing a CRUD database with SQLite
