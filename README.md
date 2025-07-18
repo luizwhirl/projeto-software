@@ -4,7 +4,7 @@
 
 - ✅ **Product Catalog Management**: Adding, updating, and categorizing inventory items
 - 🪮 **Stock Level Tracking**: Real-time tracking of inventory levels (WIP)
-- ❌ **Reorder Alerts**: Automated alerts for low stock and reorder points
+- ✅ **Reorder Alerts**: Automated alerts for low stock and reorder points
 - ❌ **Supplier Management**: Managing information about suppliers
 - ✅ **Purchase Order Creation**: Generating and managing purchase orders
 - ❌ **Barcode Scanning**: Integration of barcode scanning for inventory management
