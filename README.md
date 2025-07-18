@@ -11,4 +11,4 @@
 - ✅ **Inventory Valuation**: Calculating the total value of the inventory on hand
 - ❌ **Sales and Purchase History**: Tracking and analyzing sales and purchase data
 - ❌ **Multi-Location Management**: Managing inventory across multiple locations
-- ❌ **Inventory Reports**: Generating detailed reports on inventory status and movements
+- ✅ **Inventory Reports**: Generating detailed reports on inventory status and movements
