@@ -57,7 +57,6 @@ Uma **OrdemCompra** é um pedido formal feito a um fornecedor para adquirir novo
 3. Quando os produtos chegam fisicamente, o usuário marca a OC como "Recebida". Neste momento, o sistema solicita que o usuário informe em qual localização o estoque deve ser adicionado.
 4. Ao confirmar o recebimento, o sistema automaticamente realiza a entrada das quantidades de cada item no estoque da localização escolhida.
 
-<span style="color: gray;">*Na verdade isso é uma mera formalidade que eu criei pensando no contexto de utilização desse programa num cenário real, mas não é proprialmente algo essencial. O professor nem ao menos solicita isso na especificação.*</span>
 
 ### 5. Vendas e Histórico
 
@@ -99,7 +98,6 @@ O código está organizado em componentes principais:
   sudo apt-get install python3-tk
   ```
 - **ReportLab (Opcional):** Necessário apenas para a funcionalidade de exportar recibos de Ordens de Compra para PDF (tudo vai funcionar normalmente sem).
-<span style="color: gray;">*Essa funcão de exportar os recibos em txt ou pdf foi só uma outra funçãozinha divertida que eu inseri, mas de novo, não é algo essencial pro programa. Esse sistema tá cheio dessas coisinhas, na verdade.*</span>
 
 ### Instalação de Dependências
 
