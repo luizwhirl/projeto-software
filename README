@@ -18,6 +18,7 @@ O sistema em si é um controle de inventário, tal como é solicitado na especif
 - **Sales and Purchase History:** Tracking and analyzing sales and purchase data;
 - **Multi-Location Management:** Managing inventory across multiple locations;
 - **Inventory Reports:** Generating detailed reports on inventory status and movements.
+
 Talvez eu estivesse com preguiça de traduzir tudo 😋
 
 ## Conceitos Fundamentais
