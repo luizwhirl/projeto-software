@@ -1,0 +1,125 @@
+# Sistema de Gerenciamento de Estoque
+
+Criei esse readme breve aqui só pra direcionar um pouco o satánas é esse sistema, mas fique livre pra entrar em contato comigo e perguntar qualquer coisa.
+
+As bibliotecas utilizadas foram o **Tkinter** para a interface gráfica e **SQLite** para a persistência de dados.
+
+## Visão Geral
+
+O sistema em si é um controle de inventário, tal como é solicitado na especificação do projeto. Portanto ele conta com as requerimentos solicitados pelo professor:
+
+- **Product Catalog Management:** Adding, updating, and categorizing inventory items;
+- **Stock Level Tracking:** Real-time tracking of inventory levels;
+- **Reorder Alerts:** Automated alerts for low stock and reorder points;
+- **Supplier Management:** Managing information about suppliers;
+- **Purchase Order Creation:** Generating and managing purchase orders;
+- **Barcode Scanning:** Integration of barcode scanning for inventory management;
+- **Inventory Valuation:** Calculating the total value of the inventory on hand;
+- **Sales and Purchase History:** Tracking and analyzing sales and purchase data;
+- **Multi-Location Management:** Managing inventory across multiple locations;
+- **Inventory Reports:** Generating detailed reports on inventory status and movements.
+Talvez eu estivesse com preguiça de traduzir tudo 😋
+
+## Conceitos Fundamentais
+
+Entender os seguintes conceitos é essencial para compreender o fluxo de trabalho do sistema.
+
+### 1. Fornecedores
+
+O **Fornecedor** é a entidade que fornece os produtos. Cada produto no sistema deve estar associado a um fornecedor. Mas você não precisa se preocupar muito com isso, visto que não há como cadastrar um produto que não esteja atribuido a um fornecedor (eu acho).
+
+**Implementação:** A classe Fornecedor armazena dados de contato. A exclusão de um fornecedor resulta na exclusão em cascata de todos os produtos associados a ele, garantindo a integridade dos dados (até onde eu testei).
+
+### 2. Produtos e Ponto de Ressuprimento
+
+O **Produto** é o item central do inventário. Além de informações básicas como nome, categoria e preços, ele possui um atributo crucial:
+
+**Ponto de Ressuprimento (ponto_ressuprimento):** Este é o nível mínimo de estoque que deve ser mantido para um produto.
+
+- **Como funciona:** Sempre que uma movimentação de saída (como uma venda) faz com que o estoque total de um produto fique igual ou abaixo desse ponto, o sistema gera um alerta.
+- **Onde é visível:** O "Painel Principal" exibe uma lista de todos os produtos que atingiram ou estão abaixo do seu ponto de ressuprimento, destacando a necessidade de uma nova compra.
+
+### 3. Localizações e Transferências de Estoque
+
+O sistema permite que o estoque seja distribuído fisicamente em diferentes **Localizações** (como por exemplo um armazem, estoque de uma loja, etc.).
+
+- **Estoque por Local:** O estoque de um produto não é um valor único, mas sim um dicionário que mapeia o nome de cada localização à sua respectiva quantidade (estoque_por_local). O estoque total é a soma das quantidades em todas as localizações.
+- **Transferências:** É possível mover uma quantidade de um produto de uma localização de origem para uma de destino. Internamente, o sistema trata isso como duas movimentações: uma saída da origem e uma entrada no destino. O sistema valida se há estoque suficiente na origem antes de permitir a transferência.
+
+### 4. Ordens de Compra (OC)
+
+Uma **OrdemCompra** é um pedido formal feito a um fornecedor para adquirir novos produtos.
+
+**Fluxo de Trabalho:**
+
+1. Uma OC é criada para um fornecedor específico, contendo uma lista de itens e suas quantidades. Inicialmente, seu status é "Pendente".
+2. O status pode ser alterado para "Enviada" ou "Cancelada".
+3. Quando os produtos chegam fisicamente, o usuário marca a OC como "Recebida". Neste momento, o sistema solicita que o usuário informe em qual localização o estoque deve ser adicionado.
+4. Ao confirmar o recebimento, o sistema automaticamente realiza a entrada das quantidades de cada item no estoque da localização escolhida.
+
+<span style="color: gray;">*Na verdade isso é uma mera formalidade que eu criei pensando no contexto de utilização desse programa num cenário real, mas não é proprialmente algo essencial. O professor nem ao menos solicita isso na especificação.*</span>
+
+### 5. Vendas e Histórico
+
+Uma **Venda** registra a saída de produtos do estoque para um cliente.
+
+**Fluxo de Trabalho:**
+
+1. O usuário seleciona os produtos e as quantidades a serem vendidas.
+2. O sistema exige a seleção de uma localização de saída, de onde o estoque será debitado.
+3. **Validação de Estoque:** O sistema verifica se a quantidade desejada de cada item está disponível na localização de saída antes de confirmar a venda.
+4. Após a confirmação, o estoque é atualizado, e a transação é registrada no histórico de vendas e no histórico geral de movimentações.
+
+## Estrutura do Código
+
+O código está organizado em componentes principais:
+
+- **Data Classes (@dataclass):** Localizadas no início do arquivo (região Data Classes), definem a estrutura de todos os objetos de negócio (Produto, Fornecedor, Venda, etc.). Elas servem como o "molde" para os dados da aplicação.
+
+- **DatabaseManager:** Classe responsável por toda a interação com o banco de dados SQLite. Abstrai a execução de queries, conexões e commits.
+
+- **GerenciadorEstoque:** O "cérebro" da aplicação. Contém toda a lógica de negócio:
+  - Mantém o estado da aplicação em memória (dicionários de produtos, fornecedores, etc.) para acesso rápido.
+  - Contém os métodos para carregar dados do banco, adicionar, atualizar, remover, movimentar estoque, criar OCs, registrar vendas e gerar relatórios.
+  - Não interage diretamente com a interface gráfica.
+
+- **App:** A classe responsável por toda a interface gráfica (coisa do Tkinter).
+  - Constrói todas as janelas, abas, botões e tabelas.
+  - Captura as interações do usuário (cliques, preenchimento de formulários).
+  - Chama os métodos do GerenciadorEstoque para executar as ações solicitadas.
+  - Atualiza a interface com base nos dados retornados pelo gerenciador.
+
+## Como Executar o Projeto
+
+### Pré-requisitos
+
+- **Python 3.x**
+- **Tkinter:** Geralmente já vem instalado com o Python no Windows. Se caso você estiver utilizando um Linux, pode ser necessário instalar:
+  ```bash
+  sudo apt-get install python3-tk
+  ```
+- **ReportLab (Opcional):** Necessário apenas para a funcionalidade de exportar recibos de Ordens de Compra para PDF (tudo vai funcionar normalmente sem).
+<span style="color: gray;">*Essa funcão de exportar os recibos em txt ou pdf foi só uma outra funçãozinha divertida que eu inseri, mas de novo, não é algo essencial pro programa. Esse sistema tá cheio dessas coisinhas, na verdade.*</span>
+
+### Instalação de Dependências
+
+Para habilitar a exportação para PDF, instale a biblioteca reportlab:
+
+```bash
+pip install reportlab
+```
+
+### Execução
+
+Para o executar esse diabo, basta clonar o repositório no seu ambiente e executar o arquivo a partir do seu terminal:
+
+```bash
+python main.py
+```
+
+### Primeira Execução
+
+- Na primeira vez que o programa for executado, ele criará um arquivo de banco de dados chamado `estoque_database.db` no mesmo diretório.
+- O sistema detectará que o banco está vazio e o populará com dados de exemplo (fornecedores, localizações e produtos) para que as funcionalidades possam ser testadas imediatamente.
+
+#### Xero!

@@ -1,3 +1,12 @@
+# Oiiiii. Eu tentei comentar esse código o máximo possivel pra que ficasse mais facil de se entendê-lo
+# Tambem tentei deixar os nomes de variáveis, funções e classes o mais descritivos possível
+# Alguns dos comentários foram feitos pelo copilot, mas eu revisei todos eles 
+# Mas sei que pode ter uma coisa ou outra que esteja meio estranha e confusa
+# Por isso, se você tiver qualquer dúvida, pode me chamar no zap que eu respondo... em algum momento
+# 82 98763-8329
+# E me desculpa se voce encontrar qualquer atrocidade, é o meu jeitinho 😋
+
+
 # main.py
 # Ponto de entrada principal da aplicação de gerenciamento de estoque.
 # Responsável por inicializar o banco de dados, o gerenciador de lógica
