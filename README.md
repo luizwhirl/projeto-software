@@ -1,6 +1,6 @@
 # Sistema de Gerenciamento de Estoque
 
-Criei esse readme breve aqui só pra direcionar um pouco o satánas é esse sistema, mas fique livre pra entrar em contato comigo e perguntar qualquer coisa.
+Criei esse readme breve aqui só pra direcionar um pouco o satánas desse sistema, mas fique livre pra entrar em contato comigo e perguntar qualquer coisa.
 
 As bibliotecas utilizadas foram o **Tkinter** para a interface gráfica e **SQLite** para a persistência de dados.
 
