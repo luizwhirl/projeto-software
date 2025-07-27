@@ -8,7 +8,7 @@ As bibliotecas utilizadas foram o **Tkinter** para a interface gráfica e **SQLi
 
 O sistema em si é um controle de inventário, tal como é solicitado na especificação do projeto. Portanto ele conta com as requerimentos solicitados pelo professor:
 
-### **Product Catalog Management:** Adding, updating, and categorizing inventory items
+### **Product Catalog Management:** 
 Esse sisteminha infernal vai deixar que você possa adicionar, atualizar, categorizar e remover itens do inventário.
 - **Interface:** A aba produtos centraliza todas essas operações.
 - **Adicionar/Atualizar:** O formulário à esquerda vai possibilitar o cadastro de todos os novos produtos/edição do item selecionado na lista. O sistema vai validar os campos obrigatórios como nome, fornecedor e preços.
@@ -16,21 +16,21 @@ Esse sisteminha infernal vai deixar que você possa adicionar, atualizar, catego
 - A categorização é feita na caixa de listagem "categoria" (quem diria), que permite selcionar categorias existentes ou adicionar uma nova que precisa ser... adicionada? 
 - **Remoção:** Tambem é possível remover um ou mais produtos da lista para removê-los. Essa ação remove os produtos do banco de dados, e não pode ser desfeita
 
-### **Stock Level Tracking:** Real-time tracking of inventory levels;
+### **Stock Level Tracking:** 
 - **Estoque:** O estoque de um produto não é um valor único, mas sim um dicionário que mapeia cada Localização (como o "depósito central", "Loja A", etc.) à sua respectiva quantidade. O estoque total é, na verdade, uma soma das quantidades em todas as localizações.
 - **Visualização detalhada:** Selecionando um único produto na lista, a tabela `"Estoque por Local do item sel.` vai exibir quantos exatas unidades cada localidade possui daquele item
 - **Atualização Automática:** Qualquer operação atualiza instantaneamente os dados tanto em memória quanto no banco de dados, e carrega a interface.
 - **Tô com sono:** É sério
 
 
-### **Reorder Alerts:** Automated alerts for low stock and reorder points;
+### **Reorder Alerts:** 
 
 - **Ponto de Ressupr.:** Ao cadastrar ou atualizar um produto, um "Ponto de Ressuprimento" deve ser definido. Esse valor é o nível mínimo de estoque que, ao ser atingido, dispara um alertaaa.
 - **Geraçao de Alertas:** E falando neles... Durante uma operaçao de saída (venda) que fez com que o produto atingisse ou ultrapassasse o ponto de ressuprimento, um alarme é ativado indicando a baixa desse produto no estoque.
 - **Painel de Alertas:** Esses produtos em baixo estoque vão aparecer no `Painel Principal` na seção de `Alertar de baixo estoque`. Além disso, o nome da aba vai apresentar um (!) ao lado. 
 > ☝️ O usuário vai poder utilizar do botão "Criar Ordem de Compra para Item Selecionado" para que possa rapidamente solicitar a compra desse produto para o estoque.
 
-### **Supplier Management:** Managing information about suppliers;
+### **Supplier Management:** 
 
 A interface da aba `Fornecedors` é basicamente o CRUD de, adivinha só: Fornecedores!
 
@@ -40,7 +40,7 @@ Como um produto nao existe sem um fornecedor, a exclusão de um fornecedor resul
 
 eh mole
 
-### **Purchase Order Creation:** Generating and managing purchase orders
+### **Purchase Order Creation:** 
  O sistema tambem permite a geração e gerenciamentos de Ordens de Compra (OCs) para formalizar pedidos aos fornecedores. Eis o fluxo da coisa dentro da aba `Ordens de compra` (essa coisa ta começando a ficar muito óbvia):
 
 
@@ -53,14 +53,14 @@ eh mole
 - É possível visualizar um recibo detalhado da OC e exportá-lo tanto para TXT quanto para PDF (o que vai precisar da biblioteca `reportlab`)
 > Isso não é realmente necessário, o sistema vai funcionar normalmente sem isso. Porém é uma adição interessante para se usar.
 
-### **Inventory Valuation:** Calculating the total value of the inventory on hand
+### **Inventory Valuation:** 
 
 Adivinha o que é que isso aqui faz, duvido
 
 - **Cálculo:** O valor é calculado multiplicando a quantidade total de cada produto pelo seu `preço_compra`
 - **Exibição:** O valor total do estoque é exibido de forma proeminente no Painel Principal e tambem no cabeçalho de relatórios de inventário. A lógica desse cálculo está na função `calcular_valor_total_estoque()`, da classe `GerenciadorEstoque` em `manager.py` 
 
-### **Sales and Purchase History:** Tracking and analyzing sales and purchase data;
+### **Sales and Purchase History:** 
 Todas as transações de entrada e saída são registradas, permitindo análise histórica.
 
 De verdade não tem muito o que dizer aqui. A aba `Relatórios` mostra extratos completos de todas entradas, saídas e transferências para um produto específico. A aba `Ordens de Compras` funciona como um histórico de compras e os seus status permitem acompanhar o ciclo de vida de casda pedido.
@@ -68,7 +68,7 @@ De verdade não tem muito o que dizer aqui. A aba `Relatórios` mostra extratos 
 E se esses fazem isso, imagina a aba que se chama `Histórico de Vendas`. Mas só por desencargo de consciência: Essa aba lista todas as vendas realizadas. Ao selecioanr uma venda, tabela ao lado detalha dos produtos, quantidades e valores daquela transação específica.
 
 
-### **Multi-Location Management:** Managing inventory across multiple locations;
+### **Multi-Location Management:** 
 Esse diabinho aqui vai deixar você adicionar, gerenciar e rastrear através de múltiplos locais físicos
 - A aba "Localizações e Transferências" permite o CRUD das localizações como armazéns, depósitos ou lojas.
 - **Rastreamento Específico:** Como dito láaa no comecinho desse readme, o estoque de cada produto é rastreado individualmente para cada localização.
@@ -76,7 +76,7 @@ Esse diabinho aqui vai deixar você adicionar, gerenciar e rastrear através de 
 
 
 
-### **Inventory Reports:** Generating detailed reports on inventory status and movements.
+### **Inventory Reports:** 
 Essa seção é dedicada para se gerar relatórios textuais detalhados sobre vários aspectos do inventário (ou ao menos todos os que eu consegui pensar). Todos disponíveis são:
 
 - **Inventário Completo (Simplificado):** Lista todos os produtos com seus estoque total e detalhamento por local
@@ -86,7 +86,7 @@ Essa seção é dedicada para se gerar relatórios textuais detalhados sobre vá
 - **Histórico de movimentação por Item:** Extrato detalhado para um produto
 - **Relatório de Vendas por Período:** Analisa as vendas, receita e lucro dentro de um intervalo de datas inseridas pelo usuárioo
 
-### **Barcode Scanning:** Integration of barcode scanning for inventory management.
+### **Barcode Scanning:** 
 
 Esse, no entanto, é um caso complicado. Eu não possuo nem tenho acesso a um leitor de código de barras fixo, portanto a solução que eu utilizei para (quase) implementar essa funcionalidade foi a seguinte:
 
