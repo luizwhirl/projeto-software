@@ -108,7 +108,7 @@ O código está organizado em módulos para separar as responsabilidades:
 
 O código está organizado em componentes principais:
 
-- **Data Classes (@dataclass):** Localizadas no início do arquivo (região Data Classes), definem a estrutura de todos os objetos de negócio (Produto, Fornecedor, Venda, etc.). Elas servem como o "molde" para os dados da aplicação.
+- **Data Classes (@dataclass):** Localizadas no início do arquivo `models.py` (região Data Classes), definem a estrutura de todos os objetos de negócio (Produto, Fornecedor, Venda, etc.). Elas servem como o "molde" para os dados da aplicação.
 
 - **DatabaseManager:** Classe responsável por toda a interação com o banco de dados SQLite. Abstrai a execução de queries, conexões e commits.
 
