@@ -157,3 +157,4 @@ python main.py
 - O sistema detectará que o banco está vazio e o populará com dados de exemplo (fornecedores, localizações e produtos) para que as funcionalidades possam ser testadas imediatamente.
 
 #### Xero!
+![xerinhos](https://www.picgifs.com/comment-gifs/k/kisses-for-you/animaatjes-kisses-for-you-726237.gif)
