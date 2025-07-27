@@ -61,8 +61,8 @@ class GerenciadorEstoque:
         # carrega o histórico de movimentações
         query = "SELECT produto_id, localizacao_id, tipo, quantidade, data FROM historico_movimentos"
         for p_id, l_id, tipo, qtd, data_str in self.db.execute_query(query, fetch='all'):
-                    if (produto := self.produtos.get(p_id)) and (localizacao := self.localizacoes.get(l_id)):
-                            self.historico.append(HistoricoMovimento(produto, tipo, qtd, localizacao, datetime.fromisoformat(data_str)))
+                        if (produto := self.produtos.get(p_id)) and (localizacao := self.localizacoes.get(l_id)):
+                                self.historico.append(HistoricoMovimento(produto, tipo, qtd, localizacao, datetime.fromisoformat(data_str)))
 
         # carrega as Ordens de Compra (cabeçalho)
         for row in self.db.execute_query("SELECT * FROM ordens_compra", fetch='all'):
@@ -100,7 +100,7 @@ class GerenciadorEstoque:
         if not nome_cliente:
             raise ValueError("O nome do cliente é obrigatório.")
         if not (localizacao := self.localizacoes.get(localizacao_id)):
-             raise ValueError("Localização de saída do estoque inválida.")
+            raise ValueError("Localização de saída do estoque inválida.")
 
         # vai verificar se tem estoque suficiente para todos os itens antes de iniciar a transação
         for item_info in itens_info:
@@ -256,13 +256,25 @@ class GerenciadorEstoque:
             del self.localizacoes[localizacao_id]
             return True
         return False
+    
+    # --- NOVO: Método para buscar produto por código de barras ---
+    def buscar_produto_por_codigo_barras(self, codigo_barras: str) -> Produto | None:
+        """
+        Busca um produto na memória pelo seu código de barras.
+        Retorna o objeto Produto se encontrado, caso contrário, None.
+        """
+        for produto in self.produtos.values():
+            # Compara o código de barras, ignorando espaços em branco no início/fim
+            if produto.codigo_barras and produto.codigo_barras.strip() == codigo_barras.strip():
+                return produto
+        return None
 
     def adicionar_produto(self, fornecedor_id, **kwargs):
         if not (fornecedor := self.fornecedores.get(fornecedor_id)):
             raise ValueError("Fornecedor não encontrado.")
 
         query = """INSERT INTO produtos (nome, descricao, categoria, codigo_barras, preco_compra, preco_venda, ponto_ressuprimento, fornecedor_id) 
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)"""
+                             VALUES (?, ?, ?, ?, ?, ?, ?, ?)"""
         params = (
             kwargs['nome'], kwargs.get('descricao', ''), kwargs.get('categoria', ''), 
             kwargs.get('codigo_barras', ''), kwargs['preco_compra'], kwargs['preco_venda'], 
@@ -279,8 +291,8 @@ class GerenciadorEstoque:
             return False
         
         query = """UPDATE produtos SET nome=?, descricao=?, categoria=?, codigo_barras=?, 
-                                 preco_compra=?, preco_venda=?, ponto_ressuprimento=?, fornecedor_id=?
-                                 WHERE id=?"""
+                                  preco_compra=?, preco_venda=?, ponto_ressuprimento=?, fornecedor_id=?
+                                  WHERE id=?"""
         
         fornecedor_id = int(kwargs.get('fornecedor'))
         fornecedor_obj = self.fornecedores.get(fornecedor_id)
@@ -443,9 +455,9 @@ Data de Geração: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}
 Valor Total do Estoque: R$ {self.calcular_valor_total_estoque():.2f}
 {'='*60}\n\n"""
         for produto in self.produtos.values():
-            estoque_locais = "\n".join([f"      - {local}: {qtd} unidades" for local, qtd in produto.estoque_por_local.items() if qtd > 0])
+            estoque_locais = "\n".join([f"     - {local}: {qtd} unidades" for local, qtd in produto.estoque_por_local.items() if qtd > 0])
             if not estoque_locais:
-                estoque_locais = "      - Sem estoque registrado"
+                estoque_locais = "     - Sem estoque registrado"
 
             report += f"""ID: {produto.id} - {produto.nome} ({produto.categoria})
    Estoque Total: {produto.get_estoque_total()} unidades

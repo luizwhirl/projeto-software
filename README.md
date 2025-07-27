@@ -20,8 +20,13 @@ O sistema em si é um controle de inventário, tal como é solicitado na especif
 
 Talvez eu estivesse com preguiça de traduzir tudo 😋
 
-- **Barcode Scanning:** Integration of barcode scanning for inventory management;
-Esse, no entanto, lorem ipsum 
+- **Barcode Scanning:** Integration of barcode scanning for inventory management.
+
+Esse, no entanto, é um caso complicado. Eu não possuo nem tenho acesso a um leitor de código de barras fixo, portanto a solução que eu utilizei para (quase) implementar essa funcionalidade foi a seguinte:
+
+Leitores de código de barras normalmente respondem ao computador como um teclado comum. A leitura é feita como se o número do código de barras fosse digitado e pressionado enter. Portanto, é justamente nisso que esse código se baseia.
+
+Para utilizar dessa funcionalidade, basta digitar o número do código de barras em qualquer lugar sem foco da janela, ou seja, qualquer campo que nao seja um campo de entrada, caixa de listagem ou área de texto; só no "vazio" mesmo.
 
 ## Conceitos Fundamentais
 

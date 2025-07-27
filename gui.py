@@ -29,6 +29,13 @@ class App:
         
         # liista temporária para armazenar os itens de uma nova ordem de compra
         self.itens_oc_atual = []
+        
+        # --- Lógica do Leitor de Código de Barras ---
+        self.barcode_buffer = ""
+        self.barcode_timer = None
+        # Associa o evento de pressionar tecla a um método para toda a janela
+        self.root.bind('<Key>', self.lidar_com_keypress_barcode)
+        # ---------------------------------------------------
 
         # config d eestilo da interface
         # usando o tema é o clam, aparentemente era pra esse tema ter uma aparência mais moderna
@@ -81,6 +88,90 @@ class App:
         except (ValueError, IndexError):
             return None
 
+    #region Barcode Scanning Logic
+    # Métodos para lidar com a leitura do código de barras
+
+    def lidar_com_keypress_barcode(self, event):
+        """
+        Captura cada tecla pressionada na janela. Acumula caracteres em um buffer.
+        Se a tecla 'Enter' for pressionada (comum em scanners) ou se houver uma pausa,
+        o buffer é processado como um código de barras.
+        """
+        # --- INÍCIO DA CORREÇÃO ---
+        # Primeiro, verifica qual widget está com o foco.
+        widget_focado = self.root.focus_get()
+
+        # Se o foco estiver em um campo de entrada de texto, ignora a lógica do leitor.
+        if isinstance(widget_focado, (ttk.Entry, tk.Text, ttk.Combobox)):
+            return
+        # --- FIM DA CORREÇÃO ---
+
+        # Cancela o timer anterior para reiniciar a contagem de tempo de inatividade
+        if self.barcode_timer is not None:
+            self.root.after_cancel(self.barcode_timer)
+
+        # Se a tecla for 'Enter', processa o código imediatamente
+        if event.keysym == 'Return':
+            self.processar_barcode()
+            return "break"  # Impede que o 'Enter' acione outros widgets (como botões)
+
+        # Adiciona o caractere ao buffer apenas se for imprimível
+        if event.char and event.char.isprintable():
+            self.barcode_buffer += event.char
+
+        # Inicia um novo timer. Se o usuário parar de digitar/escanear por 200ms,
+        # o buffer é processado. Isso lida com scanners que não enviam 'Enter'.
+        self.barcode_timer = self.root.after(200, self.processar_barcode)
+
+    def processar_barcode(self):
+        """
+        Processa o buffer do código de barras, busca o produto e atualiza a GUI.
+        """
+        # Cancela o timer para evitar execuções duplicadas
+        if self.barcode_timer is not None:
+            self.root.after_cancel(self.barcode_timer)
+            self.barcode_timer = None
+
+        barcode_lido = self.barcode_buffer.strip()
+        self.barcode_buffer = ""  # Limpa o buffer para a próxima leitura
+
+        if not barcode_lido:
+            return
+
+        print(f"Código de barras recebido para processamento: '{barcode_lido}'")
+
+        produto = self.gerenciador.buscar_produto_por_codigo_barras(barcode_lido)
+
+        if produto:
+            messagebox.showinfo(
+                "Produto Encontrado",
+                f"Código de barras correspondente ao produto:\n\nID: {produto.id}\nNome: {produto.nome}",
+                parent=self.root
+            )
+            # Muda para a aba de produtos e foca no item
+            self.notebook.select(self.aba_produtos)
+            # Adiciona um pequeno delay para garantir que a aba foi renderizada antes de focar no item
+            self.root.after(50, lambda: self.focar_no_produto_treeview(produto.id))
+        else:
+            messagebox.showwarning(
+                "Produto Não Encontrado",
+                f"Nenhum produto encontrado com o código de barras '{barcode_lido}'.",
+                parent=self.root
+            )
+
+    def focar_no_produto_treeview(self, produto_id):
+        """
+        Seleciona, foca e garante a visibilidade de um item na tabela de produtos.
+        """
+        iid = str(produto_id)  # O iid do Treeview é uma string
+        if self.tree_produtos.exists(iid):
+            self.tree_produtos.selection_set(iid)
+            self.tree_produtos.focus(iid)
+            self.tree_produtos.see(iid)  # Rola a view para que o item fique visível
+            # O evento de seleção chamará automaticamente self.carregar_produto_para_formulario
+
+    #endregion
+    
     #region GUI Creation
     # Mmtodos para se construir a interface de cada aba
     def criar_aba_dashboard(self):
@@ -163,7 +254,7 @@ class App:
         self.tree_estoque_local.pack(fill='both', expand=True)
 
         # Tabela principal com a lista de todos os produtos
-        table_frame = self._criar_frame_com_titulo(self.aba_produtos, "Catálogo de Produtos (Use Ctrl/Shift para selecionar vários)")
+        table_frame = self._criar_frame_com_titulo(self.aba_produtos, "Catálogo de Produtos (Use Ctrl/Shift ou leitor de código de barras)")
         table_frame.pack(side="right", fill='both', expand=True)
 
         self.tree_produtos = ttk.Treeview(table_frame, columns=("ID", "Nome", "Categoria", "Fornecedor", "Estoque Total", "Preço Venda"), show="headings", selectmode='extended')
@@ -1162,7 +1253,7 @@ class App:
             self.atualizar_tudo()
 
         except ValueError:
-             messagebox.showerror("Erro", "Por favor, insira um ID de localização válido (apenas números).")
+            messagebox.showerror("Erro", "Por favor, insira um ID de localização válido (apenas números).")
         except Exception as e:
             messagebox.showerror("Erro", str(e))
     
@@ -1579,7 +1670,7 @@ Morada: {ordem.fornecedor.morada}
 
         categorias = self.gerenciador.get_todas_categorias()
         if "--- Adicionar Nova Categoria ---" not in categorias:
-             categorias.append("--- Adicionar Nova Categoria ---")
+            categorias.append("--- Adicionar Nova Categoria ---")
         self.entries_prod["Categoria:"]['values'] = categorias
 
 
@@ -1629,3 +1720,11 @@ Morada: {ordem.fornecedor.morada}
         except tk.TclError:
             # esse erro pode acontecer se o item selecionado não existir mais, mas aí ele só ignora
             pass
+
+# Oiiiii. Eu tentei comentar esse código o máximo possivel pra que ficasse mais facil de se entendê-lo
+# Tambem tentei deixar os nomes de variáveis, funções e classes o mais descritivos possível
+# Alguns dos comentários foram feitos pelo copilot, mas eu revisei todos eles 
+# Mas sei que pode ter uma coisa ou outra que esteja meio estranha e confusa
+# Por isso, se você tiver qualquer dúvida, pode me chamar no zap que eu respondo... em algum momento
+# 82 98763-8329
+# E me desculpa se voce encontrar qualquer atrocidade, é o meu jeitinho 😋
